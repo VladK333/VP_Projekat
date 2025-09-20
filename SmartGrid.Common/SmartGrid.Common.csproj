@@ -46,6 +46,7 @@
     <Compile Include="ISmartGridService.cs" />
     <Compile Include="SmartGridSample.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="ValidationFault.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

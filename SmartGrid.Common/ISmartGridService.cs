@@ -11,12 +11,15 @@ namespace SmartGrid.Common
     public interface ISmartGridService
     {
         [OperationContract]
+        [FaultContract(typeof(ValidationFault))]
         void StartSession(string meta);
 
         [OperationContract]
+        [FaultContract(typeof(ValidationFault))]
         void PushSample(SmartGridSample sample);
 
         [OperationContract]
+        [FaultContract(typeof(ValidationFault))]
         void EndSession();
     }
 }
