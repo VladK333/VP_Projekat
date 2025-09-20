@@ -49,5 +49,11 @@
   <ItemGroup>
     <None Include="App.config" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\SmartGrid.Common\SmartGrid.Common.csproj">
+      <Project>{f8dc307f-20d9-45da-96ab-25c0d477f427}</Project>
+      <Name>SmartGrid.Common</Name>
+    </ProjectReference>
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
