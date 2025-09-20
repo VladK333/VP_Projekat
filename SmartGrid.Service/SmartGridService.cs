@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.ServiceModel;
 using SmartGrid.Common;
+using System.IO;
 
 namespace SmartGrid.Service
 {
@@ -9,6 +10,7 @@ namespace SmartGrid.Service
     public class SmartGridService : ISmartGridService
     {
         private readonly List<SmartGridSample> _samples = new List<SmartGridSample>();
+        private readonly string _filePath = "measurements_session.csv";
 
         public void StartSession(string meta)
         {
@@ -18,6 +20,11 @@ namespace SmartGrid.Service
 
             Console.WriteLine($"Sesija zapoceta: {meta}");
             _samples.Clear();
+
+            if (!File.Exists(_filePath))
+            {
+                using (var writer = File.CreateText(_filePath)) { }
+            }
         }
 
         public void PushSample(SmartGridSample sample)
@@ -36,6 +43,20 @@ namespace SmartGrid.Service
                     new ValidationFault("FFT vrednosti moraju biti validni brojevi."));
 
             _samples.Add(sample);
+
+            try
+            {
+                using (var writer = new SampleWriter(_filePath))
+                {
+                    writer.WriteSample(sample);
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new FaultException<ValidationFault>(
+                    new ValidationFault($"Greska pri snimanju uzorka: {ex.Message}"));
+            }
+
             Console.WriteLine($"Primljen uzorak: {sample.Timestamp}, Frekvencija: {sample.Frequency}");
         }
 
