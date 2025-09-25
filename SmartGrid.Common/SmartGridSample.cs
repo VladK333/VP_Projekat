@@ -10,7 +10,8 @@ namespace SmartGrid.Common
     [DataContract]
     public class SmartGridSample
     {
-        [DataMember]
+        //2. Zadatak: WCF servis, konfiguracija i ugovori -> polja za DataContract
+                [DataMember]
         public DateTime Timestamp { get; set; }
 
         [DataMember]

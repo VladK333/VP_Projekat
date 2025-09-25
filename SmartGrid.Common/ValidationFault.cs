@@ -10,6 +10,7 @@ namespace SmartGrid.Common
     [DataContract]
     public class ValidationFault
     {
+        //2. Zadatak: WCF servis, konfiguracija i ugovori -> Validation
         string message;
 
         public ValidationFault(string message)

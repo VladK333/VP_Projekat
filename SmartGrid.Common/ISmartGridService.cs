@@ -10,6 +10,7 @@ namespace SmartGrid.Common
     [ServiceContract]
     public interface ISmartGridService
     {
+        //2. Zadatak: WCF servis, konfiguracija i ugovori -> ServiceContract
         [OperationContract]
         [FaultContract(typeof(ValidationFault))]
         void StartSession(string meta);

@@ -9,6 +9,7 @@ namespace SmartGrid.Service
     [ServiceBehavior(IncludeExceptionDetailInFaults = true)]
     public class SmartGridService : ISmartGridService
     {
+        //3. Zadatak: WCF servis, operacije i validacija podataka
         private readonly List<SmartGridSample> _samples = new List<SmartGridSample>();
         private readonly string _filePath = "measurements_session.csv";
 
