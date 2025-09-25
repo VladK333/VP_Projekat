@@ -31,17 +31,26 @@ namespace SmartGrid.Service
         public void PushSample(SmartGridSample sample)
         {
             if (sample == null)
+            {
+                LogReject(null, "Sample je null");
                 throw new FaultException<ValidationFault>(
                     new ValidationFault("Uzorak ne moze biti null."));
+            }
 
             if (sample.Frequency <= 0)
+            {
+                LogReject(sample, $"Nevalidna frekvencija: {sample.Frequency}");
                 throw new FaultException<ValidationFault>(
                     new ValidationFault("Frekvencija mora biti veca od 0."));
+            }
 
             if (double.IsNaN(sample.FFT1) || double.IsNaN(sample.FFT2) ||
                 double.IsNaN(sample.FFT3) || double.IsNaN(sample.FFT4))
+            {
+                LogReject(sample, "FFT vrednosti nisu validne.");
                 throw new FaultException<ValidationFault>(
                     new ValidationFault("FFT vrednosti moraju biti validni brojevi."));
+            }
 
             _samples.Add(sample);
 
@@ -54,6 +63,7 @@ namespace SmartGrid.Service
             }
             catch (Exception ex)
             {
+                LogReject(sample, $"Greska pri snimanju: {ex.Message}");
                 throw new FaultException<ValidationFault>(
                     new ValidationFault($"Greska pri snimanju uzorka: {ex.Message}"));
             }
@@ -61,9 +71,22 @@ namespace SmartGrid.Service
             Console.WriteLine($"Primljen uzorak: {sample.Timestamp}, Frekvencija: {sample.Frequency}");
         }
 
+
         public void EndSession()
         {
             Console.WriteLine($"Sesija zavrsena. Ukupan broj uzoraka: {_samples.Count}");
+        }
+
+        //6. Zadatak: Snimanje i organizacija fajlova na serveru -> reject.csv
+        private void LogReject(SmartGridSample sample, string reason)
+        {
+            using (var writer = new StreamWriter("rejects.csv", append: true))
+            {
+                string line = sample != null
+                    ? $"{DateTime.Now}, {reason}, {sample.Timestamp},{sample.FFT1},{sample.FFT2},{sample.FFT3},{sample.FFT4},{sample.PowerUsage},{sample.Frequency}"
+                    : $"{DateTime.Now}, {reason}, NULL sample";
+                writer.WriteLine(line);
+            }
         }
     }
 }
