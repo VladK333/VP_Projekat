@@ -6,12 +6,18 @@ using System.IO;
 
 namespace SmartGrid.Service
 {
-    [ServiceBehavior(IncludeExceptionDetailInFaults = true)]
+    [ServiceBehavior(
+        IncludeExceptionDetailInFaults = true,
+        InstanceContextMode = InstanceContextMode.Single,
+        ConcurrencyMode = ConcurrencyMode.Multiple)]
     public class SmartGridService : ISmartGridService
     {
         //3. Zadatak: WCF servis, operacije i validacija podataka
         private readonly List<SmartGridSample> _samples = new List<SmartGridSample>();
         private readonly string _filePath = "measurements_session.csv";
+
+        // 7. Zadatak: sekvencijalni streaming - flag za prenos u toku
+        private bool _isStreaming = false;
 
         public void StartSession(string meta)
         {
@@ -22,6 +28,7 @@ namespace SmartGrid.Service
             Console.WriteLine($"Sesija zapoceta: {meta}");
             _samples.Clear();
 
+            // Kreira fajl ako ne postoji
             if (!File.Exists(_filePath))
             {
                 using (var writer = File.CreateText(_filePath)) { }
@@ -52,6 +59,13 @@ namespace SmartGrid.Service
                     new ValidationFault("FFT vrednosti moraju biti validni brojevi."));
             }
 
+            // 7. Zadatak: Prikaz statusa prenosa
+            if (!_isStreaming)
+            {
+                Console.WriteLine("Prenos u toku...");
+                _isStreaming = true;
+            }
+
             _samples.Add(sample);
 
             try
@@ -74,6 +88,13 @@ namespace SmartGrid.Service
 
         public void EndSession()
         {
+            // 7. Zadatak: Zavrsen prenos
+            if (_isStreaming)
+            {
+                Console.WriteLine("Završen prenos");
+                _isStreaming = false;
+            }
+
             Console.WriteLine($"Sesija zavrsena. Ukupan broj uzoraka: {_samples.Count}");
         }
 

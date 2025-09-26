@@ -43,7 +43,7 @@ namespace SmartGrid.Client
                 {
                     try
                     {
-                        client.PushSample(sample);
+                        client.PushSample(sample); // 7. Zadatak: server ce prikazati "Prenos u toku..."
                         Console.WriteLine($"Poslat uzorak: {sample.Timestamp}");
                     }
                     catch (FaultException<ValidationFault> ex)
@@ -53,7 +53,7 @@ namespace SmartGrid.Client
                 }
 
                 // 6. End session
-                client.EndSession();
+                client.EndSession(); // 7. Zadatak: server ce prikazati "Završen prenos"
                 Console.WriteLine("Sesija završena.");
             }
             catch (Exception ex)
