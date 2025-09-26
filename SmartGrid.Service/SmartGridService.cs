@@ -1,8 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Configuration;
+using System.IO;
 using System.ServiceModel;
 using SmartGrid.Common;
-using System.IO;
 
 namespace SmartGrid.Service
 {
@@ -15,9 +16,36 @@ namespace SmartGrid.Service
         //3. Zadatak: WCF servis, operacije i validacija podataka
         private readonly List<SmartGridSample> _samples = new List<SmartGridSample>();
         private readonly string _filePath = "measurements_session.csv";
-
         // 7. Zadatak: sekvencijalni streaming - flag za prenos u toku
         private bool _isStreaming = false;
+
+        //8.
+        // Pragovi
+        private readonly double fftThreshold;
+        private readonly double fThreshold;
+
+        // Prosjecna frekvencija po sesiji
+        private double _avgFrequency = 0;
+        private int _count = 0;
+
+        public SmartGridService()
+        {
+            fftThreshold = double.Parse(ConfigurationManager.AppSettings["FFT_threshold"]);
+            fThreshold = double.Parse(ConfigurationManager.AppSettings["F_threshold"]);
+
+            // Pretplate na dogadjaje
+            OnTransferStarted += (s, e) => Console.WriteLine("[DOGAĐAJ] Prenos je zapocet.");
+            OnSampleReceived += (s, e) =>
+                Console.WriteLine($"[DOGAĐAJ] Primljen sample @ {e.Sample.Timestamp}, F={e.Sample.Frequency}");
+            OnTransferCompleted += (s, e) => Console.WriteLine("[DOGAĐAJ] Prenos zavrsen.");
+            OnWarningRaised += (s, e) => Console.WriteLine($"[UPOZORENJE] {e.Message}");
+        }
+
+        // Dogadjaji
+        public event EventHandler<EventArgs> OnTransferStarted;
+        public event EventHandler<SampleEventArgs> OnSampleReceived;
+        public event EventHandler<EventArgs> OnTransferCompleted;
+        public event EventHandler<WarningEventArgs> OnWarningRaised;
 
         public void StartSession(string meta)
         {
@@ -28,13 +56,19 @@ namespace SmartGrid.Service
             Console.WriteLine($"Sesija zapoceta: {meta}");
             _samples.Clear();
 
-            // Kreira fajl ako ne postoji
+            // Reset proseka
+            _avgFrequency = 0;
+            _count = 0;
+
+            // Kreiranje fajla ako ne postoji
             if (!File.Exists(_filePath))
             {
                 using (var writer = File.CreateText(_filePath)) { }
             }
-        }
 
+            OnTransferStarted?.Invoke(this, EventArgs.Empty);
+        }
+        //do ovoga 8
         public void PushSample(SmartGridSample sample)
         {
             if (sample == null)
@@ -81,6 +115,35 @@ namespace SmartGrid.Service
                 throw new FaultException<ValidationFault>(
                     new ValidationFault($"Greska pri snimanju uzorka: {ex.Message}"));
             }
+            //8.
+            OnSampleReceived?.Invoke(this, new SampleEventArgs(sample));
+
+            // Provjera FFT pragova
+            if (sample.FFT1 > fftThreshold || sample.FFT2 > fftThreshold ||
+                sample.FFT3 > fftThreshold || sample.FFT4 > fftThreshold)
+            {
+                OnWarningRaised?.Invoke(this,
+                    new WarningEventArgs($"Prekoracen FFT prag ({fftThreshold})"));
+            }
+
+            // Azuriranje prosjecne frekvencije
+            _count++;
+            _avgFrequency = ((_avgFrequency * (_count - 1)) + sample.Frequency) / _count;
+
+            if (Math.Abs(sample.Frequency - _avgFrequency) > _avgFrequency * 0.25)
+            {
+                OnWarningRaised?.Invoke(this,
+                    new WarningEventArgs(
+                        $"Frekvencija {sample.Frequency} odstupa vise od ±25% od tekućeg prosjeka {_avgFrequency:F2}"));
+            }
+
+            // Provjera prema fiksnom pragu
+            if (Math.Abs(sample.Frequency - fThreshold) > fThreshold * 0.25)
+            {
+                OnWarningRaised?.Invoke(this,
+                    new WarningEventArgs(
+                        $"Frekvencija van opsega ±25% od {fThreshold}Hz. Izmjereno: {sample.Frequency}"));
+            }
 
             Console.WriteLine($"Primljen uzorak: {sample.Timestamp}, Frekvencija: {sample.Frequency}");
         }
@@ -91,11 +154,13 @@ namespace SmartGrid.Service
             // 7. Zadatak: Zavrsen prenos
             if (_isStreaming)
             {
-                Console.WriteLine("Završen prenos");
+                Console.WriteLine("Zavrsen prenos");
                 _isStreaming = false;
             }
 
             Console.WriteLine($"Sesija zavrsena. Ukupan broj uzoraka: {_samples.Count}");
+
+            OnTransferCompleted?.Invoke(this, EventArgs.Empty);
         }
 
         //6. Zadatak: Snimanje i organizacija fajlova na serveru -> reject.csv
@@ -109,5 +174,17 @@ namespace SmartGrid.Service
                 writer.WriteLine(line);
             }
         }
+    }
+    //8
+    public class SampleEventArgs : EventArgs
+    {
+        public SmartGridSample Sample { get; }
+        public SampleEventArgs(SmartGridSample sample) => Sample = sample;
+    }
+
+    public class WarningEventArgs : EventArgs
+    {
+        public string Message { get; }
+        public WarningEventArgs(string message) => Message = message;
     }
 }
