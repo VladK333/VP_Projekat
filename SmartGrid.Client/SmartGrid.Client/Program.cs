@@ -19,18 +19,7 @@ namespace SmartGrid.Client
             Console.WriteLine($"Ucitanih {samples.Count} validnih uzoraka.");
 
             // 3. Kreiranje WCF klijenta
-            var binding = new NetTcpBinding
-            {
-                TransferMode = TransferMode.Streamed,
-                MaxReceivedMessageSize = 10485760,
-                OpenTimeout = TimeSpan.FromMinutes(1),
-                CloseTimeout = TimeSpan.FromMinutes(1),
-                ReceiveTimeout = TimeSpan.FromMinutes(10),
-                SendTimeout = TimeSpan.FromMinutes(1)
-            };
-
-            var endpoint = new EndpointAddress("net.tcp://localhost:4000/SmartGridService");
-            var channelFactory = new ChannelFactory<ISmartGridService>(binding, endpoint);
+            ChannelFactory < ISmartGridService> channelFactory = new ChannelFactory<ISmartGridService>("SmartGridService");
             ISmartGridService client = channelFactory.CreateChannel();
 
             try
