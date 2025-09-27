@@ -32,6 +32,10 @@ namespace SmartGrid.Service
         private double _previousFrequency = 0;
         private bool _isFirstSample = true;
 
+        // 10. Zadatak: polja za FFT
+        private double _previousFftMean = 0;
+        private bool _isFirstFftSample = true;
+
         public SmartGridService()
         {
             fftThreshold = double.Parse(ConfigurationManager.AppSettings["FFT_threshold"]);
@@ -39,8 +43,10 @@ namespace SmartGrid.Service
 
             // Pretplate na dogadjaje
             OnTransferStarted += (s, e) => Console.WriteLine("[DOGADJAJ] Prenos je zapocet.");
-            OnSampleReceived += (s, e) =>
+            OnSampleReceived += (s, e) => {
+                Console.WriteLine("----------------------------------------------------------------");
                 Console.WriteLine($"[DOGADJAJ] Primljen sample @ {e.Sample.Timestamp}, F={e.Sample.Frequency}");
+            };
             OnTransferCompleted += (s, e) => Console.WriteLine("[DOGADJAJ] Prenos zavrsen.");
             OnWarningRaised += (s, e) => Console.WriteLine($"[UPOZORENJE] {e.Message}");
 
@@ -50,6 +56,9 @@ namespace SmartGrid.Service
             OutOfBandWarning += (s, e) =>
                 Console.WriteLine($"[OUT OF BAND] F={e.Frequency:F3}, Fmean={e.RunningMean:F3}, smer: {e.Direction}");
 
+            // 10. Zadatak: event za FFT
+            FFTSpike += (s, e) =>
+                Console.WriteLine($"[FFT SPIKE] ΔFFT={e.Delta:F3}, smjer: {e.Direction}");
         }
 
         // Dogadjaji
@@ -61,6 +70,9 @@ namespace SmartGrid.Service
         // 9. Zadatak: eventovi
         public event EventHandler<FrequencySpikeEventArgs> FrequencySpike;
         public event EventHandler<OutOfBandWarningEventArgs> OutOfBandWarning;
+
+        // 10. Zadatak: event za FFT spike
+        public event EventHandler<FftSpikeEventArgs> FFTSpike;
 
         public void StartSession(string meta)
         {
@@ -78,6 +90,10 @@ namespace SmartGrid.Service
             // Reset polja frekvencije
             _previousFrequency = 0;
             _isFirstSample = true;
+
+            // Reset polja FFT
+            _previousFftMean = 0;
+            _isFirstFftSample = true;
 
             // Kreiranje fajla ako ne postoji
             if (!File.Exists(_filePath))
@@ -152,6 +168,22 @@ namespace SmartGrid.Service
                     new WarningEventArgs($"Prekoracen FFT prag ({fftThreshold}): {exceededValuesText}"));
             }
 
+            // 10. Zadatak: izracunaj prosjecan FFT i detektuj ΔFFTdiff
+            double currentFftMean = (sample.FFT1 + sample.FFT2 + sample.FFT3 + sample.FFT4) / 4.0;
+            if (!_isFirstFftSample)
+            {
+                double deltaFft = currentFftMean - _previousFftMean;
+                if (Math.Abs(deltaFft) > fftThreshold)
+                {
+                    string direction = deltaFft > 0 ? "iznad ocekivanog" : "ispod ocekivanog";
+                    FFTSpike?.Invoke(this, new FftSpikeEventArgs(deltaFft, direction));
+                }
+            }
+            else
+            {
+                _isFirstFftSample = false;
+            }
+
             // Azuriranje prosjecne frekvencije
             _count++;
             _avgFrequency = ((_avgFrequency * (_count - 1)) + sample.Frequency) / _count;
@@ -208,6 +240,9 @@ namespace SmartGrid.Service
 
             // Update novu F, radi sledeceg sample
             _previousFrequency = sample.Frequency;
+
+            // Update prethodni FFT mean, radi sledeceg sample
+            _previousFftMean = currentFftMean;
 
             Console.WriteLine($"Primljen uzorak: {sample.Timestamp}, Frekvencija: {sample.Frequency}");
         }
@@ -275,6 +310,19 @@ namespace SmartGrid.Service
         {
             Frequency = frequency;
             RunningMean = runningMean;
+            Direction = direction;
+        }
+    }
+
+    // 10. Zadatak: analiza FFT
+    public class FftSpikeEventArgs : EventArgs
+    {
+        public double Delta { get; }
+        public string Direction { get; }
+
+        public FftSpikeEventArgs(double delta, string direction)
+        {
+            Delta = delta;
             Direction = direction;
         }
     }
