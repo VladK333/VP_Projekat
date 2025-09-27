@@ -20,14 +20,17 @@ namespace SmartGrid.Service
         // 7. Zadatak: sekvencijalni streaming - flag za prenos u toku
         private bool _isStreaming = false;
 
-        //8.
-        // Pragovi
+        //8. Pragovi
         private readonly double fftThreshold;
         private readonly double fThreshold;
 
         // Prosjecna frekvencija po sesiji
         private double _avgFrequency = 0;
         private int _count = 0;
+
+        // 9. Zadatak: polja za frekvenciju
+        private double _previousFrequency = 0;
+        private bool _isFirstSample = true;
 
         public SmartGridService()
         {
@@ -38,8 +41,15 @@ namespace SmartGrid.Service
             OnTransferStarted += (s, e) => Console.WriteLine("[DOGADJAJ] Prenos je zapocet.");
             OnSampleReceived += (s, e) =>
                 Console.WriteLine($"[DOGADJAJ] Primljen sample @ {e.Sample.Timestamp}, F={e.Sample.Frequency}");
-            OnTransferCompleted += (s, e) => Console.WriteLine("[DOGAĐAJ] Prenos zavrsen.");
+            OnTransferCompleted += (s, e) => Console.WriteLine("[DOGADJAJ] Prenos zavrsen.");
             OnWarningRaised += (s, e) => Console.WriteLine($"[UPOZORENJE] {e.Message}");
+
+            // 9. Zadatak: eventovi za frekvenciju
+            FrequencySpike += (s, e) =>
+                Console.WriteLine($"[FREQUENCY SPIKE] ΔF={e.Delta:F3}, smer: {e.Direction}");
+            OutOfBandWarning += (s, e) =>
+                Console.WriteLine($"[OUT OF BAND] F={e.Frequency:F3}, Fmean={e.RunningMean:F3}, smer: {e.Direction}");
+
         }
 
         // Dogadjaji
@@ -47,6 +57,10 @@ namespace SmartGrid.Service
         public event EventHandler<SampleEventArgs> OnSampleReceived;
         public event EventHandler<EventArgs> OnTransferCompleted;
         public event EventHandler<WarningEventArgs> OnWarningRaised;
+
+        // 9. Zadatak: eventovi
+        public event EventHandler<FrequencySpikeEventArgs> FrequencySpike;
+        public event EventHandler<OutOfBandWarningEventArgs> OutOfBandWarning;
 
         public void StartSession(string meta)
         {
@@ -60,6 +74,10 @@ namespace SmartGrid.Service
             // Reset proseka
             _avgFrequency = 0;
             _count = 0;
+
+            // Reset polja frekvencije
+            _previousFrequency = 0;
+            _isFirstSample = true;
 
             // Kreiranje fajla ako ne postoji
             if (!File.Exists(_filePath))
@@ -138,11 +156,46 @@ namespace SmartGrid.Service
             _count++;
             _avgFrequency = ((_avgFrequency * (_count - 1)) + sample.Frequency) / _count;
 
+            // 9. Zadatak: Frequency spike detekcija (ΔF)
+            if (!_isFirstSample)
+            {
+                double deltaF = sample.Frequency - _previousFrequency;
+
+                // Proveri koji je spike: |ΔF| > F_threshold
+                if (Math.Abs(deltaF) > fThreshold)
+                {
+                    string direction = deltaF > 0 ? "iznad ocekivanog" : "ispod ocekivanog";
+                    FrequencySpike?.Invoke(this, new FrequencySpikeEventArgs(deltaF, direction));
+                }
+            }
+            else
+            {
+                _isFirstSample = false;
+            }
+
+            // 9. Zadatak: Out of band warning (±25% od mean)
+            if (_count > 0) // proveri samo ako imas mean
+            {
+                double lowerBound = _avgFrequency * 0.75;
+                double upperBound = _avgFrequency * 1.25;
+
+                if (sample.Frequency < lowerBound)
+                {
+                    OutOfBandWarning?.Invoke(this,
+                        new OutOfBandWarningEventArgs(sample.Frequency, _avgFrequency, "ispod ocekivane vrednosti"));
+                }
+                else if (sample.Frequency > upperBound)
+                {
+                    OutOfBandWarning?.Invoke(this,
+                        new OutOfBandWarningEventArgs(sample.Frequency, _avgFrequency, "iznad ocekivane vrednosti"));
+                }
+            }
+
             if (Math.Abs(sample.Frequency - _avgFrequency) > _avgFrequency * 0.25)
             {
                 OnWarningRaised?.Invoke(this,
                     new WarningEventArgs(
-                        $"Frekvencija {sample.Frequency} odstupa vise od ±25% od tekućeg prosjeka {_avgFrequency:F2}"));
+                        $"Frekvencija {sample.Frequency} odstupa vise od ±25% od tekuceg prosjeka {_avgFrequency:F2}"));
             }
 
             // Provjera prema fiksnom pragu
@@ -153,7 +206,10 @@ namespace SmartGrid.Service
                         $"Frekvencija van opsega ±25% od {fThreshold}Hz. Izmjereno: {sample.Frequency}"));
             }
 
-            Console.WriteLine($"\nPrimljen uzorak: {sample.Timestamp}, Frekvencija: {sample.Frequency}");
+            // Update novu F, radi sledeceg sample
+            _previousFrequency = sample.Frequency;
+
+            Console.WriteLine($"Primljen uzorak: {sample.Timestamp}, Frekvencija: {sample.Frequency}");
         }
 
 
@@ -194,5 +250,32 @@ namespace SmartGrid.Service
     {
         public string Message { get; }
         public WarningEventArgs(string message) => Message = message;
+    }
+
+    // 9. Zadatak: analiza frekvencije
+    public class FrequencySpikeEventArgs : EventArgs
+    {
+        public double Delta { get; }
+        public string Direction { get; }
+
+        public FrequencySpikeEventArgs(double delta, string direction)
+        {
+            Delta = delta;
+            Direction = direction;
+        }
+    }
+
+    public class OutOfBandWarningEventArgs : EventArgs
+    {
+        public double Frequency { get; }
+        public double RunningMean { get; }
+        public string Direction { get; }
+
+        public OutOfBandWarningEventArgs(double frequency, double runningMean, string direction)
+        {
+            Frequency = frequency;
+            RunningMean = runningMean;
+            Direction = direction;
+        }
     }
 }
