@@ -42,12 +42,13 @@ namespace SmartGrid.Client
                         var sample = new SmartGridSample //parsiranje u SmartGridSample
                         {
                             Timestamp = DateTime.Parse(parts[0], CultureInfo.InvariantCulture),
-                            FFT1 = double.Parse(parts[1], CultureInfo.InvariantCulture),
-                            FFT2 = double.Parse(parts[2], CultureInfo.InvariantCulture),
-                            FFT3 = double.Parse(parts[3], CultureInfo.InvariantCulture),
-                            FFT4 = double.Parse(parts[4], CultureInfo.InvariantCulture),
-                            PowerUsage = double.Parse(parts[5], CultureInfo.InvariantCulture),
-                            Frequency = double.Parse(parts[6], CultureInfo.InvariantCulture)
+                            // Correct column mappings:
+                            Frequency = double.Parse(parts[4], CultureInfo.InvariantCulture), // Frequency (Hz)
+                            PowerUsage = double.Parse(parts[3], CultureInfo.InvariantCulture), // Power Usage (kW)
+                            FFT1 = double.Parse(parts[6], CultureInfo.InvariantCulture),  // FFT_1
+                            FFT2 = double.Parse(parts[7], CultureInfo.InvariantCulture),  // FFT_2
+                            FFT3 = double.Parse(parts[8], CultureInfo.InvariantCulture),  // FFT_3
+                            FFT4 = double.Parse(parts[9], CultureInfo.InvariantCulture)   // FFT_4
                         };
 
                         samples.Add(sample);

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Configuration;
 using System.IO;
+using System.Linq;
 using System.ServiceModel;
 using SmartGrid.Common;
 
@@ -34,9 +35,9 @@ namespace SmartGrid.Service
             fThreshold = double.Parse(ConfigurationManager.AppSettings["F_threshold"]);
 
             // Pretplate na dogadjaje
-            OnTransferStarted += (s, e) => Console.WriteLine("[DOGAĐAJ] Prenos je zapocet.");
+            OnTransferStarted += (s, e) => Console.WriteLine("[DOGADJAJ] Prenos je zapocet.");
             OnSampleReceived += (s, e) =>
-                Console.WriteLine($"[DOGAĐAJ] Primljen sample @ {e.Sample.Timestamp}, F={e.Sample.Frequency}");
+                Console.WriteLine($"[DOGADJAJ] Primljen sample @ {e.Sample.Timestamp}, F={e.Sample.Frequency}");
             OnTransferCompleted += (s, e) => Console.WriteLine("[DOGAĐAJ] Prenos zavrsen.");
             OnWarningRaised += (s, e) => Console.WriteLine($"[UPOZORENJE] {e.Message}");
         }
@@ -122,8 +123,15 @@ namespace SmartGrid.Service
             if (sample.FFT1 > fftThreshold || sample.FFT2 > fftThreshold ||
                 sample.FFT3 > fftThreshold || sample.FFT4 > fftThreshold)
             {
+                var exceededValues = new List<string>();
+                if (sample.FFT1 > fftThreshold) exceededValues.Add($"FFT1={sample.FFT1:F3}");
+                if (sample.FFT2 > fftThreshold) exceededValues.Add($"FFT2={sample.FFT2:F3}");
+                if (sample.FFT3 > fftThreshold) exceededValues.Add($"FFT3={sample.FFT3:F3}");
+                if (sample.FFT4 > fftThreshold) exceededValues.Add($"FFT4={sample.FFT4:F3}");
+
+                string exceededValuesText = string.Join(", ", exceededValues);
                 OnWarningRaised?.Invoke(this,
-                    new WarningEventArgs($"Prekoracen FFT prag ({fftThreshold})"));
+                    new WarningEventArgs($"Prekoracen FFT prag ({fftThreshold}): {exceededValuesText}"));
             }
 
             // Azuriranje prosjecne frekvencije
@@ -145,7 +153,7 @@ namespace SmartGrid.Service
                         $"Frekvencija van opsega ±25% od {fThreshold}Hz. Izmjereno: {sample.Frequency}"));
             }
 
-            Console.WriteLine($"Primljen uzorak: {sample.Timestamp}, Frekvencija: {sample.Frequency}");
+            Console.WriteLine($"\nPrimljen uzorak: {sample.Timestamp}, Frekvencija: {sample.Frequency}");
         }
 
 
