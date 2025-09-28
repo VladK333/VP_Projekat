@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Runtime.Remoting.Messaging;
 using System.Text;
 using System.Threading.Tasks;
 using SmartGrid.Common;
@@ -15,9 +16,44 @@ namespace SmartGrid.Client
         private readonly string _datasetPath;
         private readonly string _logPath = "invalid_rows.log";
 
+        private StreamReader reader;
+        private StreamWriter logWriter;
+        private bool disposed = false;
+
+
         public CsvLoader(string datasetPath)
         {
             _datasetPath = datasetPath ?? throw new ArgumentNullException(nameof(datasetPath));
+            reader = new StreamReader(_datasetPath);
+            logWriter = new StreamWriter(_logPath, append: true);
+        }
+
+        ~CsvLoader()
+        {
+            Dispose(false);
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposed)
+            {
+                if (disposing)
+                {
+                    // oslobodi managed resurse
+                    reader?.Dispose();
+                    logWriter?.Dispose();
+                }
+
+                // ovde bi isli unmanaged resursi (ako ih ima)
+
+                disposed = true;
+            }
         }
 
         public List<SmartGridSample> LoadFirst100()
@@ -25,8 +61,8 @@ namespace SmartGrid.Client
             var samples = new List<SmartGridSample>();
             int count = 0;
 
-            using (var reader = new StreamReader(_datasetPath))
-            using (var logWriter = new StreamWriter(_logPath, append: true))
+            //using (var reader = new StreamReader(_datasetPath))
+            //using (var logWriter = new StreamWriter(_logPath, append: true))
             {
                 string header = reader.ReadLine(); // preskoči zaglavlje
                 while (!reader.EndOfStream && count < 100) //max 100 redova
