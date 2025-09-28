@@ -14,6 +14,23 @@ namespace SmartGrid.Service
         ConcurrencyMode = ConcurrencyMode.Multiple)]
     public class SmartGridService : ISmartGridService
     {
+        public delegate void TransferStartedHandler();
+        public delegate void SampleReceivedHandler(SmartGridSample sample);
+        public delegate void TransferCompletedHandler();
+        public delegate void WarningRaisedHandler(string message, SmartGridSample sample);
+
+        public event TransferStartedHandler OnTransferStarted;
+        public event SampleReceivedHandler OnSampleReceived;
+        public event TransferCompletedHandler OnTransferCompleted;
+        public event WarningRaisedHandler OnWarningRaised;
+
+        // 9. Zadatak: eventovi
+        public event EventHandler<FrequencySpikeEventArgs> FrequencySpike;
+        public event EventHandler<OutOfBandWarningEventArgs> OutOfBandWarning;
+
+        // 10. Zadatak: event za FFT spike
+        public event EventHandler<FftSpikeEventArgs> FFTSpike;
+
         //3. Zadatak: WCF servis, operacije i validacija podataka
         private readonly List<SmartGridSample> _samples = new List<SmartGridSample>();
         private readonly string _filePath = "measurements_session.csv";
@@ -41,14 +58,16 @@ namespace SmartGrid.Service
             fftThreshold = double.Parse(ConfigurationManager.AppSettings["FFT_threshold"]);
             fThreshold = double.Parse(ConfigurationManager.AppSettings["F_threshold"]);
 
-            // Pretplate na dogadjaje
-            OnTransferStarted += (s, e) => Console.WriteLine("[DOGADJAJ] Prenos je zapocet.");
-            OnSampleReceived += (s, e) => {
+            // Pretplate na dogadjaje - izmenjeno za delegate
+            OnTransferStarted += () => Console.WriteLine("[DOGADJAJ] Prenos je zapocet.");
+            OnSampleReceived += (sample) => {
                 Console.WriteLine("----------------------------------------------------------------");
-                Console.WriteLine($"[DOGADJAJ] Primljen sample @ {e.Sample.Timestamp}, F={e.Sample.Frequency}");
+                Console.WriteLine($"[DOGADJAJ] Primljen sample @ {sample.Timestamp}, F={sample.Frequency}");
             };
-            OnTransferCompleted += (s, e) => Console.WriteLine("[DOGADJAJ] Prenos zavrsen.");
-            OnWarningRaised += (s, e) => Console.WriteLine($"[UPOZORENJE] {e.Message}");
+            OnTransferCompleted += () => Console.WriteLine("[DOGADJAJ] Prenos zavrsen.");
+            OnWarningRaised += (message, sample) => {
+                Console.WriteLine($"[UPOZORENJE] {message}");
+            };
 
             // 9. Zadatak: eventovi za frekvenciju
             FrequencySpike += (s, e) =>
@@ -60,19 +79,6 @@ namespace SmartGrid.Service
             FFTSpike += (s, e) =>
                 Console.WriteLine($"[FFT SPIKE] ΔFFT={e.Delta:F3}, smjer: {e.Direction}");
         }
-
-        // Dogadjaji
-        public event EventHandler<EventArgs> OnTransferStarted;
-        public event EventHandler<SampleEventArgs> OnSampleReceived;
-        public event EventHandler<EventArgs> OnTransferCompleted;
-        public event EventHandler<WarningEventArgs> OnWarningRaised;
-
-        // 9. Zadatak: eventovi
-        public event EventHandler<FrequencySpikeEventArgs> FrequencySpike;
-        public event EventHandler<OutOfBandWarningEventArgs> OutOfBandWarning;
-
-        // 10. Zadatak: event za FFT spike
-        public event EventHandler<FftSpikeEventArgs> FFTSpike;
 
         public void StartSession(string meta)
         {
@@ -101,8 +107,10 @@ namespace SmartGrid.Service
                 using (var writer = File.CreateText(_filePath)) { }
             }
 
-            OnTransferStarted?.Invoke(this, EventArgs.Empty);
+            // UPDATED: Invoke delegate directly
+            OnTransferStarted?.Invoke();
         }
+
         //do ovoga 8
         public void PushSample(SmartGridSample sample)
         {
@@ -150,8 +158,9 @@ namespace SmartGrid.Service
                 throw new FaultException<ValidationFault>(
                     new ValidationFault($"Greska pri snimanju uzorka: {ex.Message}"));
             }
-            //8.
-            OnSampleReceived?.Invoke(this, new SampleEventArgs(sample));
+
+            //8. UPDATED: Invoke delegate with sample parameter
+            OnSampleReceived?.Invoke(sample);
 
             // Provjera FFT pragova
             if (sample.FFT1 > fftThreshold || sample.FFT2 > fftThreshold ||
@@ -164,8 +173,8 @@ namespace SmartGrid.Service
                 if (sample.FFT4 > fftThreshold) exceededValues.Add($"FFT4={sample.FFT4:F3}");
 
                 string exceededValuesText = string.Join(", ", exceededValues);
-                OnWarningRaised?.Invoke(this,
-                    new WarningEventArgs($"Prekoracen FFT prag ({fftThreshold}): {exceededValuesText}"));
+                // UPDATED: Invoke delegate with message and sample parameters
+                OnWarningRaised?.Invoke($"Prekoracen FFT prag ({fftThreshold}): {exceededValuesText}", sample);
             }
 
             // 10. Zadatak: izracunaj prosjecan FFT i detektuj ΔFFTdiff
@@ -225,17 +234,17 @@ namespace SmartGrid.Service
 
             if (Math.Abs(sample.Frequency - _avgFrequency) > _avgFrequency * 0.25)
             {
-                OnWarningRaised?.Invoke(this,
-                    new WarningEventArgs(
-                        $"Frekvencija {sample.Frequency} odstupa vise od ±25% od tekuceg prosjeka {_avgFrequency:F2}"));
+                OnWarningRaised?.Invoke(
+                    $"Frekvencija {sample.Frequency} odstupa vise od ±25% od tekuceg prosjeka {_avgFrequency:F2}",
+                    sample);
             }
 
             // Provjera prema fiksnom pragu
             if (Math.Abs(sample.Frequency - fThreshold) > fThreshold * 0.25)
             {
-                OnWarningRaised?.Invoke(this,
-                    new WarningEventArgs(
-                        $"Frekvencija van opsega ±25% od {fThreshold}Hz. Izmjereno: {sample.Frequency}"));
+                OnWarningRaised?.Invoke(
+                    $"Frekvencija van opsega ±25% od {fThreshold}Hz. Izmjereno: {sample.Frequency}",
+                    sample);
             }
 
             // Update novu F, radi sledeceg sample
@@ -246,7 +255,6 @@ namespace SmartGrid.Service
 
             Console.WriteLine($"Primljen uzorak: {sample.Timestamp}, Frekvencija: {sample.Frequency}");
         }
-
 
         public void EndSession()
         {
@@ -259,7 +267,8 @@ namespace SmartGrid.Service
 
             Console.WriteLine($"Sesija zavrsena. Ukupan broj uzoraka: {_samples.Count}");
 
-            OnTransferCompleted?.Invoke(this, EventArgs.Empty);
+            // UPDATED: Invoke delegate directly
+            OnTransferCompleted?.Invoke();
         }
 
         //6. Zadatak: Snimanje i organizacija fajlova na serveru -> reject.csv
@@ -274,20 +283,7 @@ namespace SmartGrid.Service
             }
         }
     }
-    //8
-    public class SampleEventArgs : EventArgs
-    {
-        public SmartGridSample Sample { get; }
-        public SampleEventArgs(SmartGridSample sample) => Sample = sample;
-    }
 
-    public class WarningEventArgs : EventArgs
-    {
-        public string Message { get; }
-        public WarningEventArgs(string message) => Message = message;
-    }
-
-    // 9. Zadatak: analiza frekvencije
     public class FrequencySpikeEventArgs : EventArgs
     {
         public double Delta { get; }
