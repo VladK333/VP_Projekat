@@ -10,7 +10,7 @@ using SmartGrid.Common;
 
 namespace SmartGrid.Client
 {
-    public class CsvLoader
+    public class CsvLoader : IDisposable
     {
         //5. Zadatak: Rad sa fajlovima, učitavanje CSV na klijentu
         private readonly string _datasetPath;
@@ -27,7 +27,7 @@ namespace SmartGrid.Client
             reader = new StreamReader(_datasetPath);
             logWriter = new StreamWriter(_logPath, append: true);
         }
-
+        //4. Dispose pattern
         ~CsvLoader()
         {
             Dispose(false);
@@ -55,7 +55,7 @@ namespace SmartGrid.Client
                 disposed = true;
             }
         }
-
+        //5. 
         public List<SmartGridSample> LoadFirst100()
         {
             var samples = new List<SmartGridSample>();
@@ -72,7 +72,7 @@ namespace SmartGrid.Client
 
                     try
                     {
-                        if (parts.Length < 7)
+                        if (parts.Length < 10)
                             throw new FormatException("Premalo kolona u redu.");
 
                         var sample = new SmartGridSample //parsiranje u SmartGridSample
